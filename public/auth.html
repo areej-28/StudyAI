@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyAI — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+
+  <!-- Ambient background blobs -->
+  <div class="bg-blob blob-1"></div>
+  <div class="bg-blob blob-2"></div>
+  <div class="bg-blob blob-3"></div>
+
+  <div class="auth-wrapper">
+
+    <!-- Left panel: branding -->
+    <div class="auth-left">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <rect width="28" height="28" rx="8" fill="white" fill-opacity="0.2"/>
+            <path d="M8 20L14 8L20 20" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 16.5H18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span class="brand-name">StudyAI</span>
+      </div>
+
+      <div class="hero-text">
+        <h1>Study smarter,<br>not harder.</h1>
+        <p>AI-powered summaries, practice questions, and personalized study plans — all in one place.</p>
+      </div>
+
+      <div class="feature-pills">
+        <div class="pill">✦ Smart Summaries</div>
+        <div class="pill">✦ Practice Questions</div>
+        <div class="pill">✦ Study Plans</div>
+      </div>
+    </div>
+
+    <!-- Right panel: login form -->
+    <div class="auth-right">
+      <div class="auth-card">
+        <div class="auth-card-header">
+          <h2>Welcome back</h2>
+          <p>Sign in to continue to StudyAI</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="loginError" class="error-banner" style="display:none">
+          <span class="error-icon">⚠</span>
+          <span id="loginErrorText"></span>
+        </div>
+
+        <!-- Quick login demo accounts -->
+        <div class="quick-login-section">
+          <p class="quick-label">Quick demo login</p>
+          <div class="preset-grid" id="presetGrid">
+            <div class="preset-loading">Loading accounts…</div>
+          </div>
+        </div>
+
+        <div class="divider"><span>or enter manually</span></div>
+
+        <!-- Manual form -->
+        <div class="form-group">
+          <label for="loginEmail">Email address</label>
+          <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+        </div>
+
+        <button class="btn-primary" id="loginBtn" onclick="login()">
+          <span class="btn-text">Sign In</span>
+          <span class="btn-loader" style="display:none">
+            <svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+          </span>
+        </button>
+
+        <p class="auth-footer">StudyAI uses your local session — no data shared externally.</p>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  /* ── Redirect if already logged in ──────────────────── */
+  if (localStorage.getItem("token")) window.location.href = "app.html";
+
+  /* ── Load preset demo users ──────────────────────────── */
+  fetch("/api/auth/preset-users")
+    .then(r => r.json())
+    .then(data => {
+      const grid = document.getElementById("presetGrid");
+      grid.innerHTML = data.users.map(u => `
+        <button class="preset-btn" onclick="quickLogin('${u.email}','${u.password}')">
+          <span class="preset-avatar">${u.name.charAt(0)}</span>
+          <span class="preset-info">
+            <strong>${u.name}</strong>
+            <small>${u.email}</small>
+          </span>
+        </button>
+      `).join("");
+    })
+    .catch(() => {
+      document.getElementById("presetGrid").innerHTML =
+        '<p class="preset-error">Could not load demo accounts</p>';
+    });
+
+  /* ── Quick login helper ──────────────────────────────── */
+  function quickLogin(email, password) {
+    document.getElementById("loginEmail").value = email;
+    document.getElementById("loginPassword").value = password;
+    login();
+  }
+
+  /* ── Main login function ─────────────────────────────── */
+  async function login() {
+    const email    = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const errorDiv = document.getElementById("loginError");
+    const errorTxt = document.getElementById("loginErrorText");
+    const btn      = document.getElementById("loginBtn");
+
+    // Hide previous error
+    errorDiv.style.display = "none";
+
+    // Validate fields
+    if (!email || !password) {
+      showError("Please fill in your email and password.");
+      return;
+    }
+
+    // Show loading state
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.error || "Login failed. Please try again.");
+        return;
+      }
+
+      // Save auth info and redirect
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("userName", data.user.name);
+      localStorage.setItem("userEmail", data.user.email);
+      window.location.href = "app.html";
+
+    } catch {
+      showError("Could not connect to the server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function showError(msg) {
+    const errorDiv = document.getElementById("loginError");
+    document.getElementById("loginErrorText").textContent = msg;
+    errorDiv.style.display = "flex";
+  }
+
+  function setLoading(loading) {
+    const btn    = document.getElementById("loginBtn");
+    const text   = btn.querySelector(".btn-text");
+    const loader = btn.querySelector(".btn-loader");
+    btn.disabled = loading;
+    text.style.display  = loading ? "none" : "inline";
+    loader.style.display = loading ? "inline-flex" : "none";
+  }
+
+  /* ── Allow Enter key to submit ───────────────────────── */
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter") login();
+  });
+</script>
+
+</body>
+</html>
